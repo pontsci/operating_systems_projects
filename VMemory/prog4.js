@@ -1,4 +1,5 @@
 #! /usr/bin/env node
+const { Console } = require("console");
 const fs = require("fs");
 
 //just an object to facilitate easier stat tracking
@@ -54,14 +55,20 @@ class ProgramStats {
     }
   }
 
+  get percentHits() {
+    if (this.totalRequests == 0) {
+      return 0;
+    } else {
+      return ((this.hits / this.totalRequests) * 100).toFixed(2);
+    }
+  }
+
   toString() {
     return `Program Number:${this.programNumber}, Max Queue Size: ${
       this.MAX_QUEUE_SIZE
     }, Hits: ${this.hits}, Misses: ${this.misses}, Total Requests: ${
       this.totalRequests
-    }, Percent Misses: ${
-      this.percentMisses
-    } The queue: ${this.queue.toString()}`;
+    }, Percent Hits: ${this.percentHits} The queue: ${this.queue.toString()}`;
   }
 }
 
@@ -111,7 +118,10 @@ try {
       let [programNumber, pageNumber] = line.split(/\s/);
 
       //make the request object
-      let pRequest = generatePageRequest(programNumber, pageNumber);
+      let pRequest = generatePageRequest(
+        parseInt(programNumber),
+        parseInt(pageNumber)
+      );
 
       //push it onto the array
       pageRequests.push(pRequest);
@@ -133,21 +143,133 @@ let p2Stats = new ProgramStats(2, p2Queue, P2_MAX_QUEUE_SIZE);
 let p3Stats = new ProgramStats(3, p3Queue, P3_MAX_QUEUE_SIZE);
 let p4Stats = new ProgramStats(4, p4Queue, P4_MAX_QUEUE_SIZE);
 
-//log the stats
-logToFile(p1Stats.toString());
-logToFile(p2Stats.toString());
-logToFile(p3Stats.toString());
-logToFile(p4Stats.toString());
+//go until out of requests
+while (pageRequests.length) {
+  //shift off the next request
+  let nextRequest = pageRequests.shift();
+  let programNumber = nextRequest.programNumber;
+  let pageNumber = nextRequest.pageNumber;
+
+  //attempt to add the page number to the proper queue
+  addPageNumberToQueue(programNumber, pageNumber);
+}
+
+//finalize the stats in aeasy to read format
+printStats();
+
+function printStats() {
+  console.log(
+    "Capactiy".padEnd(13) +
+      "P1".padEnd(9) +
+      "P2".padEnd(9) +
+      "P3".padEnd(9) +
+      "P4".padEnd(9) +
+      "PT".padEnd(9)
+  );
+  console.log(
+    `${p1Stats.MAX_QUEUE_SIZE}`.padEnd(13) +
+      `${p1Stats.percentHits}%`.padEnd(9) +
+      `${p2Stats.percentHits}%`.padEnd(9) +
+      `${p3Stats.percentHits}%`.padEnd(9) +
+      `${p4Stats.percentHits}%`.padEnd(9) +
+      `${averageHitPercentage()}%`.padEnd(9)
+  );
+}
+
+function averageHitPercentage() {
+  return (
+    ((p1Stats.hits + p2Stats.hits + p3Stats.hits + p4Stats.hits) /
+      (p1Stats.totalRequests +
+        p2Stats.totalRequests +
+        p3Stats.totalRequests +
+        p4Stats.totalRequests)) *
+    100
+  ).toFixed(2);
+}
+
+//adds a page number to the corresponding programNumber queue
+//adds hits and misses to relevant stat objects
+function addPageNumberToQueue(programNumber, pageNumber) {
+  let queue;
+  let maxQueueSize;
+  let programStats;
+
+  //determine the queues and programStats object
+  setCurrentlyRunningProgram();
+  maxQueueSize = programStats.MAX_QUEUE_SIZE;
+
+  //hit!
+  if (pageIsInQueue(pageNumber, queue)) {
+    programStats.hit();
+
+    //hit so, move the pageNumber to the end of the array (most recently used)
+    //in this case I can just remove the element completely from the queue, and re-add it again
+    //this keeps the array in the correct order with minimal thought
+    let index = queue.indexOf(pageNumber);
+
+    //console.log(`Removing ${pageNumber} with an index of ${index}`);
+    queue.splice(index, 1);
+
+    //add it to the end, it is the most recently used
+    //console.log("Re adding it to the end...");
+    queue.push(pageNumber);
+  }
+  //miss!
+  else {
+    programStats.miss();
+
+    //since it missed, we may have to get rid of the LRU page
+    if (queue.length >= maxQueueSize) {
+      //remove the least recently used
+      removeLRU(queue);
+    }
+    //add the pageNumber
+    queue.push(pageNumber);
+  }
+
+  function setCurrentlyRunningProgram() {
+    switch (programNumber) {
+      case 1:
+        //console.log("Program 1");
+        queue = p1Queue;
+        programStats = p1Stats;
+        break;
+      case 2:
+        queue = p2Queue;
+        programStats = p2Stats;
+        //console.log("Program 2");
+        break;
+      case 3:
+        queue = p3Queue;
+        programStats = p3Stats;
+        //console.log("Program 3");
+        break;
+      case 4:
+        queue = p4Queue;
+        programStats = p4Stats;
+        //console.log("Program 4");
+        break;
+      default:
+        console.log("invalid program number!!!");
+    }
+  }
+}
+
+//checks whether a page is in a given queue
+function pageIsInQueue(pageNumber, queue) {
+  if (queue.includes(pageNumber)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+//simply shifts off the front of the queue, in this context, the LRU page
+function removeLRU(queue) {
+  queue.shift();
+}
 
 //generates a new page request for the programNumber specified
 function generatePageRequest(programNumber, pageNumber) {
   return new PageRequest(programNumber, pageNumber);
-}
-
-//log a string to file named log.txt
-function logToFile(message) {
-  let stream = fs.createWriteStream("log.txt", { flags: "a" });
-  writeTime = new Date();
-  stream.write(`${writeTime.toString()} ||| ${message}\n`);
-  stream.close;
 }
