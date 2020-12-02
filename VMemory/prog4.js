@@ -81,6 +81,10 @@ class PageRequest {
   get pageNumber() {
     return this.#pageNumber;
   }
+
+  toString() {
+    return `Program Number: ${this.programNumber}, Page Number: ${this.pageNumber}`;
+  }
 }
 
 //get the program arguments
@@ -93,6 +97,29 @@ const P4_MAX_QUEUE_SIZE = myArgs[4];
 
 //the array that will hold all page requests from the data file
 let pageRequests = [];
+try {
+  // read contents of the file
+  const data = fs.readFileSync(INPUT_FILE, "UTF-8");
+
+  // split the contents by new line
+  const lines = data.split(/\r?\n/);
+
+  // push all the lines as page requests
+  lines.forEach((line) => {
+    if (line != "") {
+      //get the program number and page number from the line
+      let [programNumber, pageNumber] = line.split(/\s/);
+
+      //make the request object
+      let pRequest = new PageRequest(programNumber, pageNumber);
+
+      //push it onto the array
+      pageRequests.push(pRequest);
+    }
+  });
+} catch (err) {
+  console.error(err);
+}
 
 //the program queues
 let p1Queue = [];
