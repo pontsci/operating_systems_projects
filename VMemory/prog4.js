@@ -111,7 +111,7 @@ try {
       let [programNumber, pageNumber] = line.split(/\s/);
 
       //make the request object
-      let pRequest = new PageRequest(programNumber, pageNumber);
+      let pRequest = generatePageRequest(programNumber, pageNumber);
 
       //push it onto the array
       pageRequests.push(pRequest);
