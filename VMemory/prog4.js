@@ -1,5 +1,4 @@
 #! /usr/bin/env node
-const { Console } = require("console");
 const fs = require("fs");
 
 //just an object to facilitate easier stat tracking
